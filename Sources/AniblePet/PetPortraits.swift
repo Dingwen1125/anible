@@ -323,8 +323,8 @@ enum PetProfileStore {
     }
 
     private static var supportDirectory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return base.appendingPathComponent("AniblePet", isDirectory: true)
+        URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("LocalPets", isDirectory: true)
     }
 
     private static var petsDirectory: URL {
