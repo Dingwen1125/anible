@@ -1,7 +1,8 @@
 import AppKit
 
 final class PetWindowController: NSObject {
-    private let footBottomInset: CGFloat = 14
+    private let petSize = NSSize(width: 118, height: 106)
+    private let footBottomInset: CGFloat = 11
     private let window: NSPanel
     private let petView: PetView
     private var movementTimer: Timer?
@@ -19,11 +20,11 @@ final class PetWindowController: NSObject {
 
     init(portraitSet: PetPortraitSet? = nil, onOpenManager: @escaping () -> Void) {
         self.onOpenManager = onOpenManager
-        petView = PetView(frame: NSRect(x: 0, y: 0, width: 148, height: 132))
+        petView = PetView(frame: NSRect(origin: .zero, size: petSize))
         petView.portraitSet = portraitSet
 
         window = NSPanel(
-            contentRect: NSRect(x: 160, y: 160, width: 148, height: 132),
+            contentRect: NSRect(x: 160, y: 160, width: petSize.width, height: petSize.height),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false

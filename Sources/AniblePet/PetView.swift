@@ -1,6 +1,7 @@
 import AppKit
 
 final class PetView: NSView {
+    private let baseSize = NSSize(width: 148, height: 132)
     var onTap: (() -> Void)?
     var onDragStart: ((NSPoint) -> Void)?
     var onDrag: ((NSPoint) -> Void)?
@@ -100,6 +101,11 @@ final class PetView: NSView {
             return
         }
 
+        NSGraphicsContext.saveGraphicsState()
+        let transform = NSAffineTransform()
+        transform.scaleX(by: bounds.width / baseSize.width, yBy: bounds.height / baseSize.height)
+        transform.concat()
+
         let bob = heldBobOffset()
         let body = NSBezierPath(ovalIn: NSRect(x: 24, y: 18 + bob, width: 100, height: 86))
         NSColor(calibratedRed: 1.0, green: 0.73, blue: 0.36, alpha: 1).setFill()
@@ -110,6 +116,7 @@ final class PetView: NSView {
         drawFace()
         drawFeet()
         drawStateAccessory()
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     private func drawUploadedPortrait() -> Bool {
