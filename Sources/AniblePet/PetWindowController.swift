@@ -410,6 +410,7 @@ final class PetWindowController: NSObject {
             let rect = appKitRect(fromQuartzRect: bounds, on: screen)
             guard rect.width >= 180, rect.height >= 80 else { return nil }
             guard rect.intersects(screen.visibleFrame) else { return nil }
+            guard rect.maxY - footBottomInset + window.frame.height <= screen.visibleFrame.maxY - 6 else { return nil }
 
             let distance: CGFloat
             if petMidX < rect.minX {
@@ -455,6 +456,7 @@ final class PetWindowController: NSObject {
             let rect = appKitRect(fromQuartzRect: bounds, on: screen)
             guard rect.width >= 180, rect.height >= 80 else { return nil }
             guard rect.intersects(screen.visibleFrame) else { return nil }
+            guard rect.maxY - footBottomInset + window.frame.height <= screen.visibleFrame.maxY - 6 else { return nil }
 
             let petLeft = currentFrame.minX + 24
             let petRight = currentFrame.maxX - 24
@@ -486,7 +488,9 @@ final class PetWindowController: NSObject {
         }
 
         let currentRect = appKitRect(fromQuartzRect: bounds, on: screen)
-        if !currentRect.isNearlyEqual(to: platform.windowRect, tolerance: 2) {
+        let standingY = currentRect.maxY - footBottomInset
+        let hasHeadroom = standingY + window.frame.height <= screen.visibleFrame.maxY - 6
+        if !hasHeadroom || !currentRect.isNearlyEqual(to: platform.windowRect, tolerance: 2) {
             startFall()
         }
     }
