@@ -37,10 +37,10 @@ Transparent PNG or WebP images are recommended. The suggested size is `296x264`.
 
 ## Local Storage
 
-Uploaded pet images are saved inside the project folder:
+Uploaded pet images are saved in the current macOS user's Application Support folder:
 
 ```text
-LocalPets/
+~/Library/Application Support/AniblePet/
   profiles.json
   Pets/
     <pet-id>/
@@ -49,7 +49,7 @@ LocalPets/
       ...
 ```
 
-`LocalPets/` is ignored by Git, so uploaded pet images will not be committed or pushed to GitHub.
+This path is outside the project repository, so uploaded pet images are not committed or pushed to GitHub. It also works when the app is packaged and launched as a `.app`.
 
 ## Project Structure
 
