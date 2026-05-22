@@ -3,6 +3,7 @@ import AppKit
 final class PetWindowController: NSObject {
     private let petSize = NSSize(width: 118, height: 106)
     private let footBottomInset: CGFloat = 11
+    private let walkSpeed: CGFloat = 0.85
     private let window: NSPanel
     private let petView: PetView
     private var movementTimer: Timer?
@@ -114,6 +115,7 @@ final class PetWindowController: NSObject {
             var frame = window.frame
             frame.origin.x += velocity.dx
             walkingDistanceRemaining -= abs(velocity.dx)
+            petView.facingRight = velocity.dx > 0
 
             let surfaceFrame = movementFrame(on: screenFrame)
             let minX = surfaceFrame.minX
@@ -187,7 +189,7 @@ final class PetWindowController: NSObject {
         state = next
         petView.state = next
         if next == .walking {
-            velocity.dx = abs(velocity.dx) * (Bool.random() ? 1 : -1)
+            velocity.dx = velocity.dx >= 0 ? walkSpeed : -walkSpeed
             petView.facingRight = velocity.dx > 0
         }
     }
@@ -274,8 +276,30 @@ final class PetWindowController: NSObject {
     }
 
     private func startShortWalk() {
+        chooseWalkDirection()
         walkingDistanceRemaining = CGFloat.random(in: 45...260)
         setState(.walking)
+    }
+
+    private func chooseWalkDirection() {
+        guard let screenFrame = NSScreen.main?.visibleFrame else {
+            velocity.dx = Bool.random() ? walkSpeed : -walkSpeed
+            return
+        }
+
+        let surfaceFrame = movementFrame(on: screenFrame)
+        let frame = window.frame
+        let edgePadding: CGFloat = 44
+
+        if frame.origin.x <= surfaceFrame.minX + edgePadding {
+            velocity.dx = walkSpeed
+        } else if frame.origin.x >= surfaceFrame.maxX - edgePadding {
+            velocity.dx = -walkSpeed
+        } else {
+            velocity.dx = Bool.random() ? walkSpeed : -walkSpeed
+        }
+
+        petView.facingRight = velocity.dx > 0
     }
 
     private func alignToCurrentSurface(on screenFrame: NSRect) {
