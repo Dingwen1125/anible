@@ -7,11 +7,14 @@ final class PetWindowController: NSObject {
     private let petView: PetView
     private var movementTimer: Timer?
     private var stateTimer: Timer?
-    private var velocity = CGVector(dx: 1.4, dy: 0)
+    private var velocity = CGVector(dx: 0.85, dy: 0)
     private var state: PetState = .idle
     private var walkingDistanceRemaining: CGFloat = 0
     private var jumpAnimation: JumpAnimation?
     private var fallVelocity: CGFloat = 0
+    private var sleepUntil: Date?
+    private var nextSleepAllowedAt: Date?
+    private var shouldSleepAfterLanding = false
     private var isDragging = false
     private var dragStartMouseLocation: NSPoint?
     private var dragStartWindowOrigin: NSPoint?
@@ -137,6 +140,14 @@ final class PetWindowController: NSObject {
 
     private func chooseNextState() {
         guard state != .jumping, state != .falling, state != .held, !isDragging else { return }
+        if state == .sleeping {
+            if let sleepUntil, Date() < sleepUntil {
+                return
+            }
+            nextSleepAllowedAt = Date().addingTimeInterval(15 * 60)
+            setState(.idle)
+            return
+        }
 
         let next = PetState.weightedRandom()
         switch next {
@@ -153,11 +164,26 @@ final class PetWindowController: NSObject {
         case .held:
             break
         case .sleeping:
-            setState(.sleeping)
+            if canSleepNow() {
+                setState(.sleeping)
+            } else {
+                setState(.idle)
+            }
         }
     }
 
+    private func canSleepNow() -> Bool {
+        guard let nextSleepAllowedAt else { return true }
+        return Date() >= nextSleepAllowedAt
+    }
+
     private func setState(_ next: PetState) {
+        if next == .sleeping, state != .sleeping {
+            sleepUntil = Date().addingTimeInterval(TimeInterval.random(in: 60...600))
+        } else if next != .sleeping {
+            sleepUntil = nil
+        }
+
         state = next
         petView.state = next
         if next == .walking {
@@ -167,18 +193,52 @@ final class PetWindowController: NSObject {
     }
 
     private func handleTap() {
+        if state == .sleeping {
+            wakeFromSleepByInteraction()
+            scheduleSleepAfterInterruptionIfNeeded()
+            return
+        }
+
         if !startJump() {
             startShortWalk()
         }
     }
 
     private func beginDrag(at mouseLocation: NSPoint) {
-        isDragging = true
+        let wasSleeping = state == .sleeping
         walkingSurface = .dock
         jumpAnimation = nil
+        if wasSleeping {
+            wakeFromSleepByInteraction()
+            shouldSleepAfterLanding = Int.random(in: 0..<100) < 60
+        }
+
+        isDragging = true
         setState(.held)
         dragStartMouseLocation = mouseLocation
         dragStartWindowOrigin = window.frame.origin
+    }
+
+    private func wakeFromSleepByInteraction() {
+        sleepUntil = nil
+        setState(.idle)
+    }
+
+    private func scheduleSleepAfterInterruptionIfNeeded() {
+        guard Int.random(in: 0..<100) < 60 else { return }
+        Timer.scheduledTimer(withTimeInterval: 0.6, repeats: false) { [weak self] _ in
+            guard let self, !self.isDragging, self.state == .idle else { return }
+            self.setState(.sleeping)
+        }
+    }
+
+    private func sleepAfterLandingIfNeeded() {
+        guard shouldSleepAfterLanding else { return }
+        shouldSleepAfterLanding = false
+        Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [weak self] _ in
+            guard let self, !self.isDragging, self.state == .idle else { return }
+            self.setState(.sleeping)
+        }
     }
 
     private func drag(to mouseLocation: NSPoint) {
@@ -214,7 +274,7 @@ final class PetWindowController: NSObject {
     }
 
     private func startShortWalk() {
-        walkingDistanceRemaining = CGFloat.random(in: 70...180)
+        walkingDistanceRemaining = CGFloat.random(in: 45...260)
         setState(.walking)
     }
 
@@ -280,6 +340,7 @@ final class PetWindowController: NSObject {
             window.setFrame(frame, display: true)
             fallVelocity = 0
             setState(.idle)
+            sleepAfterLandingIfNeeded()
         } else {
             frame.origin.y = nextY
             window.setFrame(frame, display: true)
@@ -448,6 +509,7 @@ final class PetWindowController: NSObject {
         if state == .jumping {
             setState(.idle)
         }
+        sleepAfterLandingIfNeeded()
     }
 
     private func movementFrame(for surface: WalkingSurface, on screenFrame: NSRect) -> (minX: CGFloat, maxX: CGFloat, y: CGFloat) {
