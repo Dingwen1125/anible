@@ -104,6 +104,7 @@ final class PetWindowController: NSObject {
         case .falling:
             updateFall(on: screenFrame)
         case .idle:
+            petView.lookAtMouse(windowFrame: window.frame)
             alignToCurrentSurface(on: screenFrame)
         case .walking:
             var frame = window.frame

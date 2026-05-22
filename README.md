@@ -10,6 +10,28 @@ Anible shows a small floating pet on the main desktop. The pet can idle, walk a 
 swift run AniblePet
 ```
 
+## Package As A macOS App
+
+To build a normal double-clickable macOS app bundle:
+
+```bash
+./scripts/package_app.sh
+```
+
+The packaged app is written to:
+
+```text
+dist/Anible Pet.app
+```
+
+You can open it with:
+
+```bash
+open "dist/Anible Pet.app"
+```
+
+The app is locally ad-hoc signed for development/testing. For public distribution outside your own Macs, use a Developer ID certificate and Apple notarization.
+
 ## Features
 
 - Floating transparent desktop pet window.
@@ -34,6 +56,7 @@ When uploading a custom pet, the app guides you through each state. You do not n
 - Sleeping: 2 images
 
 Transparent PNG or WebP images are recommended. The suggested size is `296x264`.
+Prepare custom images facing right by default. The app mirrors the image automatically when the pet faces left, including walking in the opposite direction.
 
 ## Local Storage
 
