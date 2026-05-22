@@ -3,12 +3,12 @@ import AppKit
 final class PetWindowController: NSObject {
     private let petSize = NSSize(width: 118, height: 106)
     private let footBottomInset: CGFloat = 11
-    private let walkSpeed: CGFloat = 0.85
+    private let walkSpeed: CGFloat = 1
     private let window: NSPanel
     private let petView: PetView
     private var movementTimer: Timer?
     private var stateTimer: Timer?
-    private var velocity = CGVector(dx: 0.85, dy: 0)
+    private var velocity = CGVector(dx: 1, dy: 0)
     private var state: PetState = .idle
     private var walkingDistanceRemaining: CGFloat = 0
     private var jumpAnimation: JumpAnimation?
@@ -20,6 +20,7 @@ final class PetWindowController: NSObject {
     private var dragStartMouseLocation: NSPoint?
     private var dragStartWindowOrigin: NSPoint?
     private var walkingSurface = WalkingSurface.dock
+    private var preferNextWalkRight = true
     private let onOpenManager: () -> Void
 
     init(portraitSet: PetPortraitSet? = nil, onOpenManager: @escaping () -> Void) {
@@ -96,7 +97,7 @@ final class PetWindowController: NSObject {
     }
 
     private func tick() {
-        guard let screenFrame = NSScreen.main?.visibleFrame else { return }
+        guard let screenFrame = currentVisibleFrame() else { return }
         guard !isDragging else {
             petView.needsDisplay = true
             return
@@ -113,22 +114,18 @@ final class PetWindowController: NSObject {
             alignToCurrentSurface(on: screenFrame)
         case .walking:
             var frame = window.frame
-            frame.origin.x += velocity.dx
-            walkingDistanceRemaining -= abs(velocity.dx)
-            petView.facingRight = velocity.dx > 0
-
             let surfaceFrame = movementFrame(on: screenFrame)
-            let minX = surfaceFrame.minX
-            let maxX = surfaceFrame.maxX
-            if frame.origin.x <= minX || frame.origin.x >= maxX {
-                velocity.dx *= -1
-                frame.origin.x = min(max(frame.origin.x, minX), maxX)
-                petView.facingRight = velocity.dx > 0
-            }
+            let step = velocity.dx
+            frame.origin.x += step
+            frame.origin.x = min(max(frame.origin.x, surfaceFrame.minX), surfaceFrame.maxX)
+            petView.facingRight = step > 0
+            walkingDistanceRemaining -= abs(step)
 
             frame.origin.y = surfaceFrame.y
             window.setFrame(frame, display: true)
-            if walkingDistanceRemaining <= 0 {
+            if walkingDistanceRemaining <= 0
+                || frame.origin.x <= surfaceFrame.minX
+                || frame.origin.x >= surfaceFrame.maxX {
                 setState(.idle)
             }
         case .jumping:
@@ -188,9 +185,8 @@ final class PetWindowController: NSObject {
 
         state = next
         petView.state = next
-        if next == .walking {
-            velocity.dx = velocity.dx >= 0 ? walkSpeed : -walkSpeed
-            petView.facingRight = velocity.dx > 0
+        if next != .walking {
+            walkingDistanceRemaining = 0
         }
     }
 
@@ -260,11 +256,15 @@ final class PetWindowController: NSObject {
     }
 
     private func positionNearBottomRight() {
-        guard let screenFrame = NSScreen.main?.visibleFrame else { return }
+        guard let screenFrame = currentVisibleFrame() else { return }
         var frame = window.frame
-        frame.origin.x = screenFrame.maxX - frame.width - 80
+        frame.origin.x = screenFrame.midX - frame.width / 2
         frame.origin.y = dockSurfaceY(on: screenFrame)
         window.setFrame(frame, display: true)
+    }
+
+    private func currentVisibleFrame() -> NSRect? {
+        window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame
     }
 
     private func movementFrame(on screenFrame: NSRect) -> (minX: CGFloat, maxX: CGFloat, y: CGFloat) {
@@ -276,30 +276,38 @@ final class PetWindowController: NSObject {
     }
 
     private func startShortWalk() {
-        chooseWalkDirection()
+        guard chooseWalkDirection() else {
+            setState(.idle)
+            return
+        }
         walkingDistanceRemaining = CGFloat.random(in: 45...260)
         setState(.walking)
     }
 
-    private func chooseWalkDirection() {
-        guard let screenFrame = NSScreen.main?.visibleFrame else {
-            velocity.dx = Bool.random() ? walkSpeed : -walkSpeed
-            return
+    private func chooseWalkDirection() -> Bool {
+        guard let screenFrame = currentVisibleFrame() else {
+            velocity.dx = preferNextWalkRight ? walkSpeed : -walkSpeed
+            return true
         }
 
         let surfaceFrame = movementFrame(on: screenFrame)
         let frame = window.frame
         let edgePadding: CGFloat = 44
+        let canMoveRight = frame.origin.x < surfaceFrame.maxX - edgePadding
+        let canMoveLeft = frame.origin.x > surfaceFrame.minX + edgePadding
 
-        if frame.origin.x <= surfaceFrame.minX + edgePadding {
+        if canMoveRight && (!canMoveLeft || preferNextWalkRight) {
             velocity.dx = walkSpeed
-        } else if frame.origin.x >= surfaceFrame.maxX - edgePadding {
+            preferNextWalkRight = false
+        } else if canMoveLeft {
             velocity.dx = -walkSpeed
+            preferNextWalkRight = true
         } else {
-            velocity.dx = Bool.random() ? walkSpeed : -walkSpeed
+            return false
         }
 
         petView.facingRight = velocity.dx > 0
+        return true
     }
 
     private func alignToCurrentSurface(on screenFrame: NSRect) {
@@ -311,7 +319,7 @@ final class PetWindowController: NSObject {
     }
 
     private func startJump() -> Bool {
-        guard let screenFrame = NSScreen.main?.visibleFrame else { return false }
+        guard let screenFrame = currentVisibleFrame() else { return false }
 
         let targetSurface: WalkingSurface
         switch walkingSurface {
@@ -339,7 +347,7 @@ final class PetWindowController: NSObject {
     }
 
     private func startFallIfNeeded() {
-        guard let screenFrame = NSScreen.main?.visibleFrame else { return }
+        guard let screenFrame = currentVisibleFrame() else { return }
         let dockFrame = movementFrame(for: .dock, on: screenFrame)
         if window.frame.origin.y <= dockFrame.y + 2 {
             moveToDock(on: screenFrame)
@@ -413,7 +421,7 @@ final class PetWindowController: NSObject {
     }
 
     private func nearbyWindowPlatform() -> WindowPlatform? {
-        guard let screen = NSScreen.main else { return nil }
+        guard let screen = window.screen ?? NSScreen.main else { return nil }
         let petMidX = window.frame.midX
         let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
         let appPID = ProcessInfo.processInfo.processIdentifier
@@ -460,7 +468,7 @@ final class PetWindowController: NSObject {
     }
 
     private func windowPlatformsBelow(currentFrame: NSRect) -> [WindowPlatform] {
-        guard let screen = NSScreen.main else { return [] }
+        guard let screen = window.screen ?? NSScreen.main else { return [] }
         let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
         let appPID = ProcessInfo.processInfo.processIdentifier
 
@@ -499,7 +507,7 @@ final class PetWindowController: NSObject {
 
     private func dropToDockIfCurrentWindowMoved(on screenFrame: NSRect) {
         guard case .windowTop(let platform) = walkingSurface else { return }
-        guard let screen = NSScreen.main else { return }
+        guard let screen = window.screen ?? NSScreen.main else { return }
 
         let windows = CGWindowListCopyWindowInfo([.optionIncludingWindow], platform.windowID) as? [[String: Any]] ?? []
         guard
