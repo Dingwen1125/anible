@@ -468,6 +468,14 @@ final class PetWindowController: NSObject {
     }
 
     private func windowPlatformsBelow(currentFrame: NSRect) -> [WindowPlatform] {
+        allWindowPlatforms().filter { platform in
+            let petLeft = currentFrame.minX + 24
+            let petRight = currentFrame.maxX - 24
+            return petRight >= platform.minX && petLeft <= platform.maxX
+        }
+    }
+
+    private func allWindowPlatforms() -> [WindowPlatform] {
         guard let screen = window.screen ?? NSScreen.main else { return [] }
         let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
         let appPID = ProcessInfo.processInfo.processIdentifier
@@ -489,10 +497,6 @@ final class PetWindowController: NSObject {
             guard rect.width >= 180, rect.height >= 80 else { return nil }
             guard rect.intersects(screen.visibleFrame) else { return nil }
             guard rect.maxY - footBottomInset + window.frame.height <= screen.visibleFrame.maxY - 6 else { return nil }
-
-            let petLeft = currentFrame.minX + 24
-            let petRight = currentFrame.maxX - 24
-            guard petRight >= rect.minX + 8, petLeft <= rect.maxX - 8 else { return nil }
 
             return WindowPlatform(
                 windowID: windowID,
@@ -522,9 +526,63 @@ final class PetWindowController: NSObject {
         let currentRect = appKitRect(fromQuartzRect: bounds, on: screen)
         let standingY = currentRect.maxY - footBottomInset
         let hasHeadroom = standingY + window.frame.height <= screen.visibleFrame.maxY - 6
-        if !hasHeadroom || !currentRect.isNearlyEqual(to: platform.windowRect, tolerance: 2) {
+        guard hasHeadroom else {
             startFall()
+            return
         }
+
+        let updatedPlatform = WindowPlatform(
+            windowID: platform.windowID,
+            windowRect: currentRect,
+            minX: currentRect.minX + 8,
+            maxX: currentRect.maxX - 8,
+            y: standingY,
+            distance: platform.distance
+        )
+
+        if let liftingPlatform = liftingWindowPlatform(above: platform, on: screenFrame) {
+            moveToWindowTop(liftingPlatform, on: screenFrame)
+            return
+        }
+
+        if !currentRect.isNearlyEqual(to: platform.windowRect, tolerance: 2) {
+            if updatedPlatform.y >= platform.y - 2 {
+                moveToWindowTop(updatedPlatform, on: screenFrame)
+            } else {
+                startFall()
+            }
+        }
+    }
+
+    private func liftingWindowPlatform(above currentPlatform: WindowPlatform, on screenFrame: NSRect) -> WindowPlatform? {
+        let currentFrame = window.frame
+        let petLeft = currentFrame.minX + 24
+        let petRight = currentFrame.maxX - 24
+        let currentPlatformY = currentPlatform.y
+        let liftTolerance: CGFloat = 18
+
+        return allWindowPlatforms()
+            .filter { platform in
+                platform.windowID != currentPlatform.windowID
+                    && platform.y > currentPlatformY
+                    && platform.y <= currentFrame.origin.y + liftTolerance
+                    && petRight >= platform.minX
+                    && petLeft <= platform.maxX
+                    && platform.y + window.frame.height <= screenFrame.maxY - 6
+            }
+            .max { $0.y < $1.y }
+    }
+
+    private func moveToWindowTop(_ platform: WindowPlatform, on screenFrame: NSRect) {
+        walkingSurface = .windowTop(platform)
+        jumpAnimation = nil
+        fallVelocity = 0
+
+        var frame = window.frame
+        let surfaceFrame = movementFrame(for: .windowTop(platform), on: screenFrame)
+        frame.origin.x = min(max(frame.origin.x, surfaceFrame.minX), surfaceFrame.maxX)
+        frame.origin.y = surfaceFrame.y
+        window.setFrame(frame, display: true)
     }
 
     private func startFall() {
