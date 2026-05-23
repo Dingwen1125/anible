@@ -191,7 +191,7 @@ enum PetPortraitUploadWizard {
 
             \(requirement.notes)
 
-            接下来会一张一张选择。系统会自动把这些图片归类为「\(requirement.pose.displayName)」，不需要你按文件名命名。
+            接下来会一张一张选择。系统会自动把这些图片归类为「\(requirement.pose.displayName)。
             """
             intro.addButton(withTitle: "开始选择")
             intro.addButton(withTitle: "取消并使用默认宠物")

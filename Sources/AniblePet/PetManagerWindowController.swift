@@ -23,12 +23,12 @@ final class PetManagerWindowController: NSWindowController {
         self.onProfileSelected = onProfileSelected
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 460, height: 320),
+            contentRect: NSRect(x: 0, y: 0, width: 460, height: 350),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
-        window.minSize = NSSize(width: 420, height: 300)
+        window.minSize = NSSize(width: 420, height: 330)
         window.title = "Anible 宠物管理"
         window.center()
 
@@ -64,6 +64,9 @@ final class PetManagerWindowController: NSWindowController {
         let deleteButton = NSButton(title: "删除选中宠物", target: self, action: #selector(deleteSelectedPet))
         deleteButton.bezelStyle = .rounded
 
+        let quitButton = NSButton(title: "滚回去睡觉(退出)", target: self, action: #selector(quitApplication))
+        quitButton.bezelStyle = .rounded
+
         let stack = NSStackView(views: [
             titleLabel,
             helperLabel,
@@ -73,6 +76,7 @@ final class PetManagerWindowController: NSWindowController {
             uploadButton,
             defaultButton,
             deleteButton,
+            quitButton,
             statusLabel
         ])
         stack.orientation = .vertical
@@ -163,6 +167,10 @@ final class PetManagerWindowController: NSWindowController {
             alert.informativeText = error.localizedDescription
             alert.runModal()
         }
+    }
+
+    @objc private func quitApplication() {
+        NSApp.terminate(nil)
     }
 
     private func askForPetName() -> String? {
