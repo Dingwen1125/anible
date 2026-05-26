@@ -99,10 +99,12 @@ final class PetWindowController: NSObject {
     private func tick() {
         guard let screenFrame = currentVisibleFrame() else { return }
         guard !isDragging else {
+            setPetOccluded(false)
             petView.needsDisplay = true
             return
         }
         dropToDockIfCurrentWindowMoved(on: screenFrame)
+        updateWindowOcclusion()
 
         switch state {
         case .held:
@@ -240,6 +242,7 @@ final class PetWindowController: NSObject {
     }
 
     private func drag(to mouseLocation: NSPoint) {
+        setPetOccluded(false)
         guard let dragStartMouseLocation, let dragStartWindowOrigin else { return }
         var frame = window.frame
         frame.origin.x = dragStartWindowOrigin.x + mouseLocation.x - dragStartMouseLocation.x
@@ -631,6 +634,61 @@ final class PetWindowController: NSObject {
             width: rect.width,
             height: rect.height
         )
+    }
+
+    private func updateWindowOcclusion() {
+        guard case .windowTop(let platform) = walkingSurface else {
+            setPetOccluded(false)
+            return
+        }
+
+        guard state != .jumping, state != .falling, state != .held else {
+            setPetOccluded(false)
+            return
+        }
+
+        guard let screen = window.screen ?? NSScreen.main else {
+            setPetOccluded(false)
+            return
+        }
+
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        let appPID = ProcessInfo.processInfo.processIdentifier
+        let petBodyRect = window.frame.insetBy(dx: 18, dy: 10)
+        var foundCurrentPlatform = false
+
+        for info in windows {
+            guard
+                let windowID = info[kCGWindowNumber as String] as? CGWindowID,
+                (info[kCGWindowOwnerPID as String] as? pid_t) != appPID,
+                (info[kCGWindowLayer as String] as? Int) == 0,
+                let alpha = info[kCGWindowAlpha as String] as? Double,
+                alpha > 0,
+                let boundsInfo = info[kCGWindowBounds as String] as? [String: Any],
+                let bounds = CGRect(dictionaryRepresentation: boundsInfo as CFDictionary)
+            else {
+                continue
+            }
+
+            if windowID == platform.windowID {
+                foundCurrentPlatform = true
+                break
+            }
+
+            let rect = appKitRect(fromQuartzRect: bounds, on: screen)
+            guard rect.width >= 80, rect.height >= 60 else { continue }
+            if rect.intersects(petBodyRect) {
+                setPetOccluded(true)
+                return
+            }
+        }
+
+        setPetOccluded(!foundCurrentPlatform)
+    }
+
+    private func setPetOccluded(_ isOccluded: Bool) {
+        window.alphaValue = isOccluded ? 0 : 1
+        window.ignoresMouseEvents = isOccluded
     }
 }
 
